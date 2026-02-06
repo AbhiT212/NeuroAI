@@ -1,0 +1,43 @@
+steps:
+  # 1. Build the container image using Buildpacks (Standard Python detection)
+  - name: 'gcr.io/k8s-skaffold/pack'
+    entrypoint: 'pack'
+    args:
+      - 'build'
+      - '$_GCR_HOSTNAME/$PROJECT_ID/cloud-run-source-deploy/$_SERVICE_NAME:$COMMIT_SHA'
+      - '--builder=gcr.io/buildpacks/builder:v1'
+      - '--network=cloudbuild'
+    id: Build
+
+  # 2. Push the image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '$_GCR_HOSTNAME/$PROJECT_ID/cloud-run-source-deploy/$_SERVICE_NAME:$COMMIT_SHA']
+    id: Push
+
+  # 3. Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '$_SERVICE_NAME'
+      - '--image'
+      - '$_GCR_HOSTNAME/$PROJECT_ID/cloud-run-source-deploy/$_SERVICE_NAME:$COMMIT_SHA'
+      - '--region'
+      - '$_DEPLOY_REGION'
+      - '--memory'
+      - '4Gi'   # Ensure app gets 4GB RAM
+      - '--cpu'
+      - '2'     # Ensure app gets 2 CPUs
+      - '--allow-unauthenticated'
+    id: Deploy
+
+# Environment variables (You can change region here if needed)
+substitutions:
+    _GCR_HOSTNAME: us.gcr.io
+    _SERVICE_NAME: neuroai-app
+    _DEPLOY_REGION: us-central1
+
+# CRITICAL FIX: Use a powerful machine for the build process
+options:
+    machineType: 'E2_HIGHCPU_8'
