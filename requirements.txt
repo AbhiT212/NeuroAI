@@ -11,3 +11,5 @@ plotly
 pandas
 scipy
 einops  
+batchgenerators
+simpleitk

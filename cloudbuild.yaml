@@ -34,9 +34,9 @@ steps:
 
 # Environment variables
 substitutions:
-    _GCR_HOSTNAME: us.gcr.io
+    _GCR_HOSTNAME: eu.gcr.io
     _SERVICE_NAME: neuroai-app
-    _DEPLOY_REGION: us-central1
+    _DEPLOY_REGION: europe-west1
 
 # FIX: High CPU for build AND Explicit Logging setting
 options:
