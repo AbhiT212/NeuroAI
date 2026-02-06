@@ -36,9 +36,9 @@ steps:
 substitutions:
     _GCR_HOSTNAME: us.gcr.io
     _SERVICE_NAME: neuroai-app
-    _DEPLOY_REGION: us-central1  # Change if you are in a different region
+    _DEPLOY_REGION: us-central1
 
 # FIX: High CPU for build AND Explicit Logging setting
 options:
     machineType: 'E2_HIGHCPU_8'
-    logging: CLOUD_LOGGING_ONLY  <-- THIS FIXES YOUR ERROR
+    logging: CLOUD_LOGGING_ONLY
