@@ -1,0 +1,12 @@
+dash
+dash-bootstrap-components
+gunicorn
+torch
+torchvision
+monai
+nibabel
+numpy
+scikit-image
+plotly
+pandas
+scipy

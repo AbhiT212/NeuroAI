@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+temp_sessions/
+.DS_Store
+checkpoints/best.pth
+!checkpoints/best.pth.part*
