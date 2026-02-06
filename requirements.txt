@@ -13,3 +13,6 @@ scipy
 einops  
 batchgenerators
 simpleitk
+timm
+yacs
+termcolor
