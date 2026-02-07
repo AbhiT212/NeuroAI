@@ -743,8 +743,11 @@ app.index_string = '''
 '''
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-TEMP_DIR = os.path.join(tempfile.gettempdir(), "neuroai_sessions")
-os.makedirs(TEMP_DIR, exist_ok=True)
+TEMP_DIR = "/mnt/data"
+
+if not os.path.exists(TEMP_DIR):
+    os.makedirs(TEMP_DIR, exist_ok=True)
+
 MODEL = None
 
 # =========================================
