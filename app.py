@@ -7,6 +7,7 @@ import nibabel as nib
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from skimage import measure
+import tempfile
 import traceback
 
 import dash
@@ -742,7 +743,7 @@ app.index_string = '''
 '''
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-TEMP_DIR = "temp_sessions"
+TEMP_DIR = os.path.join(tempfile.gettempdir(), "neuroai_sessions")
 os.makedirs(TEMP_DIR, exist_ok=True)
 MODEL = None
 
