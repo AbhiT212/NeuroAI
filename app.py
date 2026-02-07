@@ -1631,66 +1631,108 @@ def diagnose(n, path, gt_path):
         return ("Error", "Error", "Error", "Error", empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_table,
                 100, 100, 100, None, True, {"width": "0%"}, True, error_msg, empty_gt_tab)
 
-# 2D SLICE VIEWERS
+
+# Global Cache to store loaded brains in RAM
+# Format: { 'session_id': { 'img': numpy_array, 'mask': numpy_array } }
+DATA_CACHE = {}
+
+def get_slice_fig(path, dim, idx):
+    """
+    Optimized function to get a slice from RAM if available, 
+    otherwise load from disk and cache it.
+    """
+    if not path: 
+        return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)", xaxis=dict(visible=False), yaxis=dict(visible=False)))
+
+    try:
+        # 1. Use folder name as Session ID
+        session_id = os.path.basename(path)
+
+        # 2. Check Cache (RAM) first
+        if session_id in DATA_CACHE:
+            img = DATA_CACHE[session_id]['img']
+            mask = DATA_CACHE[session_id]['mask']
+        else:
+            # 3. Cache Miss: Load from Disk (Slow, occurs once)
+            print(f"⚡ Loading scan into RAM for {session_id}...")
+            img_path = os.path.join(path, "img.npy")
+            mask_path = os.path.join(path, "mask.npy")
+            
+            if not os.path.exists(img_path):
+                return go.Figure()
+
+            # Load fully into RAM (remove mmap_mode)
+            img = np.load(img_path)
+            mask = np.load(mask_path)
+            
+            # Store in Cache
+            DATA_CACHE[session_id] = { 'img': img, 'mask': mask }
+
+        # 4. Slice the 3D array based on dimension
+        # dim 0 = Sagittal, dim 1 = Coronal, dim 2 = Axial
+        if dim == 0: # Sagittal
+            img_slice = img[idx, :, :]
+            mask_slice = mask[idx, :, :]
+        elif dim == 1: # Coronal
+            img_slice = img[:, idx, :]
+            mask_slice = mask[:, idx, :]
+        else: # Axial (Default)
+            img_slice = img[:, :, idx]
+            mask_slice = mask[:, :, idx]
+
+        # 5. Rotate for correct viewing orientation
+        img_slice = np.rot90(img_slice)
+        mask_slice = np.rot90(mask_slice)
+
+        # 6. Normalize and Colorize
+        max_val = np.max(img_slice)
+        img_norm = img_slice / (max_val + 1e-6)
+        
+        # Create base Grayscale image (R=G=B) + Alpha
+        rgba = np.stack([img_norm] * 3 + [np.ones_like(img_norm)], axis=-1) * 255
+        
+        # Overlay Colors: Red (1), Blue (2), Yellow (3)
+        colors = {1: [239, 68, 68], 2: [59, 130, 246], 3: [251, 191, 36]}
+        
+        for label_id, color in colors.items():
+            mask_region = (mask_slice == label_id)
+            if np.any(mask_region):
+                # Blend: 60% Color + 40% Original Pixel
+                for ch in range(3): 
+                    rgba[mask_region, ch] = rgba[mask_region, ch] * 0.4 + np.array(color)[ch] * 0.6
+
+        # 7. Create Figure
+        fig = go.Figure(go.Image(z=rgba.astype(np.uint8)))
+        fig.update_layout(
+            margin=dict(l=0, r=0, b=0, t=0), 
+            xaxis=dict(visible=False), 
+            yaxis=dict(visible=False), 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)',
+            hovermode=False
+        )
+        return fig
+
+    except Exception as e:
+        print(f"❌ SLICE ERROR: {e}")
+        return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)"))
+
+# --- UPDATED CALLBACKS USING THE NEW FUNCTION ---
+
 @app.callback([Output("2d-axial", "figure"), Output("slice-indicator-axial", "children")],
               [Input("slice-slider-axial", "value")], State("results", "data"), prevent_initial_call=True)
 def update_axial_slice(idx, path):
-    if not path:
-        return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)", xaxis=dict(visible=False), yaxis=dict(visible=False))), ""
-    try:
-        img = np.rot90(np.load(os.path.join(path, "img.npy"), mmap_mode='r')[:, :, idx])
-        mask = np.rot90(np.load(os.path.join(path, "mask.npy"), mmap_mode='r')[:, :, idx])
-        img_norm = img / (np.max(img) + 1e-6)
-        rgba = np.stack([img_norm] * 3 + [np.ones_like(img_norm)], axis=-1) * 255
-        for label_id, color in {1: np.array([239, 68, 68]), 2: np.array([59, 130, 246]), 3: np.array([251, 191, 36])}.items():
-            mask_region = (mask == label_id)
-            if np.any(mask_region):
-                for ch in range(3): rgba[mask_region, ch] = rgba[mask_region, ch] * 0.4 + color[ch] * 0.6
-        fig = go.Figure(go.Image(z=rgba.astype(np.uint8)))
-        fig.update_layout(margin=dict(l=0, r=0, b=0, t=0), xaxis=dict(visible=False), yaxis=dict(visible=False), 
-                         paper_bgcolor='rgba(0,0,0,0)', hovermode=False)
-        return fig, f"Slice {idx}"
-    except: return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)")), f"Slice {idx}"
+    return get_slice_fig(path, 2, idx), f"Slice {idx}"
 
 @app.callback([Output("2d-sagittal", "figure"), Output("slice-indicator-sagittal", "children")],
               [Input("slice-slider-sagittal", "value")], State("results", "data"), prevent_initial_call=True)
 def update_sagittal_slice(idx, path):
-    if not path:
-        return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)", xaxis=dict(visible=False), yaxis=dict(visible=False))), ""
-    try:
-        img = np.rot90(np.load(os.path.join(path, "img.npy"), mmap_mode='r')[idx, :, :])
-        mask = np.rot90(np.load(os.path.join(path, "mask.npy"), mmap_mode='r')[idx, :, :])
-        img_norm = img / (np.max(img) + 1e-6)
-        rgba = np.stack([img_norm] * 3 + [np.ones_like(img_norm)], axis=-1) * 255
-        for label_id, color in {1: np.array([239, 68, 68]), 2: np.array([59, 130, 246]), 3: np.array([251, 191, 36])}.items():
-            mask_region = (mask == label_id)
-            if np.any(mask_region):
-                for ch in range(3): rgba[mask_region, ch] = rgba[mask_region, ch] * 0.4 + color[ch] * 0.6
-        fig = go.Figure(go.Image(z=rgba.astype(np.uint8)))
-        fig.update_layout(margin=dict(l=0, r=0, b=0, t=0), xaxis=dict(visible=False), yaxis=dict(visible=False), 
-                         paper_bgcolor='rgba(0,0,0,0)', hovermode=False)
-        return fig, f"Slice {idx}"
-    except: return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)")), f"Slice {idx}"
+    return get_slice_fig(path, 0, idx), f"Slice {idx}"
 
 @app.callback([Output("2d-coronal", "figure"), Output("slice-indicator-coronal", "children")],
               [Input("slice-slider-coronal", "value")], State("results", "data"), prevent_initial_call=True)
 def update_coronal_slice(idx, path):
-    if not path:
-        return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)", xaxis=dict(visible=False), yaxis=dict(visible=False))), ""
-    try:
-        img = np.rot90(np.load(os.path.join(path, "img.npy"), mmap_mode='r')[:, idx, :])
-        mask = np.rot90(np.load(os.path.join(path, "mask.npy"), mmap_mode='r')[:, idx, :])
-        img_norm = img / (np.max(img) + 1e-6)
-        rgba = np.stack([img_norm] * 3 + [np.ones_like(img_norm)], axis=-1) * 255
-        for label_id, color in {1: np.array([239, 68, 68]), 2: np.array([59, 130, 246]), 3: np.array([251, 191, 36])}.items():
-            mask_region = (mask == label_id)
-            if np.any(mask_region):
-                for ch in range(3): rgba[mask_region, ch] = rgba[mask_region, ch] * 0.4 + color[ch] * 0.6
-        fig = go.Figure(go.Image(z=rgba.astype(np.uint8)))
-        fig.update_layout(margin=dict(l=0, r=0, b=0, t=0), xaxis=dict(visible=False), yaxis=dict(visible=False), 
-                         paper_bgcolor='rgba(0,0,0,0)', hovermode=False)
-        return fig, f"Slice {idx}"
-    except: return go.Figure(layout=dict(paper_bgcolor="rgba(0,0,0,0)")), f"Slice {idx}"
+    return get_slice_fig(path, 1, idx), f"Slice {idx}"
 
 # DOWNLOAD
 @app.callback(Output("dl-nifti", "data"), Input("btn-dl", "n_clicks"), State("results", "data"), prevent_initial_call=True)
@@ -1701,9 +1743,9 @@ def download_mask(n, path):
 # RUN APP
 if __name__ == "__main__":
     print("=" * 60)
-    print("🧠 NeuroAI Pro Dashboard v4.0 - With Ground Truth Support")
+    print("🧠 NeuroAI Pro Dashboard v4.1 - Optimized with RAM Cache")
     print("=" * 60)
     print(f"Device: {DEVICE}")
-    print("Features: GT Comparison, Dice Score, IoU, Precision/Recall")
+    print("Features: Instant Slicing, GT Comparison, Persistent Storage")
     print("=" * 60)
     app.run(debug=True, port=8050, host='0.0.0.0')
