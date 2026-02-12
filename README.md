@@ -129,8 +129,8 @@ This allows selective spatial retrieval.
 ### 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/neuroai-pro.git
-cd neuroai-pro
+git clone https://github.com/AbhiT212/NeuroAI
+cd NeuroAI
 ```
 
 ---
