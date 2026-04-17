@@ -1,4 +1,4 @@
-LIVE WORKING DEMO : <a href="https://neuroai-451806891859.europe-west1.run.app"><b>[ View Live Demo ]</b></a>
+
 
 
 # 🧠 NeuroAI Pro: Volumetric Medical Image Segmentation
